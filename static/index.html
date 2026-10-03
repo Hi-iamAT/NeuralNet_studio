@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuralNet Studio · MiniModel Dashboard</title>
+  <meta name="description" content="Train and run a PyTorch binary-classification neural network interactively in your browser." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── reset & tokens ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #080f1e;
+      --surface:   #0f1d35;
+      --card:      #132040;
+      --border:    #1e3358;
+      --accent:    #38bdf8;
+      --pink:      #f472b6;
+      --green:     #34d399;
+      --yellow:    #fbbf24;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --radius:    14px;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── animated starfield ── */
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(56,189,248,.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(244,114,182,.07) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── layout ── */
+    .wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* ── header ── */
+    header {
+      padding: 28px 0 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 36px;
+    }
+    .header-inner { display: flex; align-items: center; gap: 16px; }
+    .logo {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent), var(--pink));
+      border-radius: 12px;
+      display: grid; place-items: center;
+      font-size: 22px;
+      box-shadow: 0 0 24px rgba(56,189,248,.35);
+    }
+    .header-text h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.5px; }
+    .header-text p  { font-size: .85rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── grid ── */
+    .grid-2 { display: grid; grid-template-columns: 340px 1fr; gap: 24px; }
+    @media(max-width: 820px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    /* ── card ── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: rgba(56,189,248,.3); }
+    .card-title {
+      font-size: .75rem; font-weight: 600; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 18px;
+    }
+
+    /* ── form controls ── */
+    label { display: block; font-size: .82rem; color: var(--muted); margin-bottom: 6px; }
+    .input-group { margin-bottom: 16px; }
+    input[type=number], input[type=text] {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: .9rem;
+      font-family: 'JetBrains Mono', monospace;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input[type=number]:focus, input[type=text]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56,189,248,.15);
+    }
+    input[type=range] {
+      width: 100%; accent-color: var(--accent); cursor: pointer;
+    }
+    .range-row { display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── button ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 22px; border-radius: 9px;
+      font-size: .9rem; font-weight: 600; cursor: pointer;
+      border: none; transition: all .2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent) 0%, #0ea5e9 100%);
+      color: #080f1e;
+      box-shadow: 0 4px 18px rgba(56,189,248,.35);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(56,189,248,.45); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+    .btn-ghost:hover { background: rgba(56,189,248,.08); }
+    .btn-full { width: 100%; justify-content: center; }
+
+    /* ── status badge ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 11px; border-radius: 999px;
+      font-size: .75rem; font-weight: 600;
+    }
+    .badge-idle    { background: rgba(100,116,139,.15); color: var(--muted); }
+    .badge-train   { background: rgba(251,191,36,.15);  color: var(--yellow); }
+    .badge-done    { background: rgba(52,211,153,.15);  color: var(--green); }
+    .badge-error   { background: rgba(244,63,94,.15);   color: #fb7185; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .dot.pulse { animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ── progress bar ── */
+    .progress-track {
+      width: 100%; height: 6px;
+      background: var(--surface); border-radius: 999px;
+      overflow: hidden; margin: 12px 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--pink));
+      border-radius: 999px;
+      width: 0%;
+      transition: width .3s ease;
+    }
+
+    /* ── chart area ── */
+    #chartWrap {
+      position: relative; width: 100%; aspect-ratio: 16/7;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #chartWrap canvas { width: 100% !important; height: 100% !important; }
+    .chart-placeholder {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: var(--muted); gap: 10px; font-size: .9rem;
+    }
+    .chart-placeholder svg { opacity: .4; }
+
+    /* ── loss stats row ── */
+    .stats-row { display: flex; gap: 12px; margin-top: 16px; }
+    .stat-box {
+      flex: 1; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 16px;
+    }
+    .stat-label { font-size: .72rem; color: var(--muted); margin-bottom: 4px; }
+    .stat-value { font-size: 1.15rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .stat-value.train { color: var(--accent); }
+    .stat-value.val   { color: var(--pink); }
+
+    /* ── epoch log ── */
+    #epochLog {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .75rem; color: var(--muted);
+      max-height: 120px; overflow-y: auto;
+      background: var(--surface); border-radius: 8px;
+      padding: 10px 14px; margin-top: 14px;
+      border: 1px solid var(--border);
+    }
+    #epochLog p { line-height: 1.7; }
+    #epochLog p span.train { color: var(--accent); }
+    #epochLog p span.val   { color: var(--pink); }
+    #epochLog p span.ep    { color: var(--yellow); }
+
+    /* ── prediction section ── */
+    .feat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .predict-result {
+      margin-top: 16px; padding: 16px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; text-align: center;
+      display: none;
+    }
+    .predict-result.show { display: block; }
+    .prob-ring {
+      width: 90px; height: 90px; margin: 0 auto 12px;
+      border-radius: 50%;
+      display: grid; place-items: center;
+      font-size: 1.3rem; font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .class-label { font-size: 1rem; font-weight: 600; margin-bottom: 4px; }
+    .class-sub   { font-size: .78rem; color: var(--muted); }
+
+    /* ── plot image ── */
+    #plotImg { width: 100%; border-radius: 10px; display: none; margin-top: 14px; }
+
+    /* ── scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── footer ── */
+    footer { text-align: center; color: var(--muted); font-size: .78rem; padding: 32px 0 24px; margin-top: 48px; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-inner">
+      <div class="logo">🧠</div>
+      <div class="header-text">
+        <h1>NeuralNet Studio</h1>
+        <p>Binary classification · PyTorch · NoisyLinear · Leaky ReLU · Adam</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN GRID -->
+  <div class="grid-2">
+
+    <!-- LEFT: controls -->
+    <div style="display:flex; flex-direction:column; gap:20px;">
+
+      <!-- Training Config -->
+      <div class="card">
+        <div class="card-title">⚙️ &nbsp;Training Config</div>
+
+        <div class="input-group">
+          <label>Epochs <span id="epochVal" style="color:var(--accent)">100</span></label>
+          <input id="epochsRange" type="range" min="10" max="300" value="100"
+                 oninput="document.getElementById('epochVal').textContent=this.value" />
+          <div class="range-row"><span>10</span><span>300</span></div>
+        </div>
+
+        <div class="input-group">
+          <label>Learning Rate</label>
+          <input id="lrInput" type="number" value="0.01" min="0.0001" max="0.5" step="0.001" />
+        </div>
+
+        <div class="input-group">
+          <label>Batch Size</label>
+          <input id="bsInput" type="number" value="32" min="8" max="256" step="8" />
+        </div>
+
+        <button id="trainBtn" class="btn btn-primary btn-full" onclick="startTraining()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Start Training
+        </button>
+      </div>
+
+      <!-- Status -->
+      <div class="card">
+        <div class="card-title">📡 &nbsp;Status</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <span id="statusBadge" class="badge badge-idle"><span class="dot"></span> Idle</span>
+          <span id="epochCounter" style="font-size:.8rem; color:var(--muted)">— / —</span>
+        </div>
+        <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
+        <div id="epochLog"><p style="color:var(--muted)">Training log will appear here…</p></div>
+      </div>
+
+      <!-- Predict -->
+      <div class="card">
+        <div class="card-title">🎯 &nbsp;Predict</div>
+        <p style="font-size:.8rem; color:var(--muted); margin-bottom:14px;">Enter 5 feature values to get a prediction from the trained model.</p>
+        <div class="feat-grid">
+          <div class="input-group"><label>Feature 1</label><input class="feat" type="number" placeholder="0.0" step="0.1" /></div>
+          <div class="input-group"><label>Feature 2</label><input class="feat" type="number" placeholder="0.0" step="0.1" /></div>
+          <div class="input-group"><label>Feature 3</label><input class="feat" type="number" placeholder="0.0" step="0.1" /></div>
+          <div class="input-group"><label>Feature 4</label><input class="feat" type="number" placeholder="0.0" step="0.1" /></div>
+          <div class="input-group" style="grid-column:1/-1"><label>Feature 5</label><input class="feat" type="number" placeholder="0.0" step="0.1" /></div>
+        </div>
+        <button id="predictBtn" class="btn btn-ghost btn-full" onclick="runPredict()" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          Run Inference
+        </button>
+        <div id="predictResult" class="predict-result"></div>
+      </div>
+
+    </div><!-- /left -->
+
+    <!-- RIGHT: chart + plot -->
+    <div style="display:flex; flex-direction:column; gap:20px;">
+
+      <!-- Loss chart -->
+      <div class="card" style="flex:1;">
+        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>📈 &nbsp;Loss Curve</span>
+          <span id="lossLegend" style="font-size:.72rem; display:flex; gap:12px;">
+            <span style="color:var(--accent)">● Train</span>
+            <span style="color:var(--pink)">● Validation</span>
+          </span>
+        </div>
+
+        <div id="chartWrap">
+          <div id="chartPlaceholder" class="chart-placeholder">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span>Start training to see the loss curve</span>
+          </div>
+          <canvas id="lossChart" style="display:none;"></canvas>
+        </div>
+
+        <!-- stat boxes -->
+        <div class="stats-row">
+          <div class="stat-box">
+            <div class="stat-label">Best Train Loss</div>
+            <div class="stat-value train" id="bestTrain">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Best Val Loss</div>
+            <div class="stat-value val" id="bestVal">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Last Epoch</div>
+            <div class="stat-value" id="lastEpoch" style="color:var(--yellow)">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Matplotlib plot (after training) -->
+      <div class="card" id="plotCard" style="display:none;">
+        <div class="card-title">🖼️ &nbsp;Matplotlib Export</div>
+        <img id="plotImg" alt="Loss plot" />
+      </div>
+
+    </div><!-- /right -->
+
+  </div><!-- /grid -->
+
+  <footer>Built with Flask · PyTorch · Chart.js &nbsp;·&nbsp; MiniModel Dashboard</footer>
+</div><!-- /wrap -->
+
+<script>
+// ── chart setup ──
+let chart = null;
+
+function initChart() {
+  const ctx = document.getElementById("lossChart").getContext("2d");
+  chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [
+        { label: "Train", data: [], borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,.08)",
+          borderWidth: 2, pointRadius: 0, tension: 0.35, fill: true },
+        { label: "Val",   data: [], borderColor: "#f472b6", backgroundColor: "rgba(244,114,182,.06)",
+          borderWidth: 2, pointRadius: 0, tension: 0.35, fill: true },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: {
+        backgroundColor: "#132040", borderColor: "#1e3358", borderWidth: 1,
+        titleColor: "#e2e8f0", bodyColor: "#94a3b8",
+        callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(5)}` }
+      }},
+      scales: {
+        x: { grid: { color: "rgba(30,51,88,.6)" }, ticks: { color: "#64748b", maxTicksLimit: 10 } },
+        y: { grid: { color: "rgba(30,51,88,.6)" }, ticks: { color: "#64748b" } }
+      }
+    }
+  });
+}
+
+// ── training ──
+let pollInterval = null;
+let totalEpochs  = 100;
+
+async function startTraining() {
+  const epochs = parseInt(document.getElementById("epochsRange").value);
+  const lr     = parseFloat(document.getElementById("lrInput").value);
+  const bs     = parseInt(document.getElementById("bsInput").value);
+  totalEpochs  = epochs;
+
+  // reset UI
+  document.getElementById("trainBtn").disabled = true;
+  document.getElementById("predictBtn").disabled = true;
+  document.getElementById("predictResult").classList.remove("show");
+  document.getElementById("epochLog").innerHTML = "";
+  document.getElementById("progressFill").style.width = "0%";
+  document.getElementById("plotCard").style.display = "none";
+  document.getElementById("bestTrain").textContent = "—";
+  document.getElementById("bestVal").textContent   = "—";
+  document.getElementById("lastEpoch").textContent = "—";
+
+  if (chart) { chart.destroy(); chart = null; }
+  document.getElementById("lossChart").style.display = "none";
+  document.getElementById("chartPlaceholder").style.display = "flex";
+
+  setStatus("training");
+
+  await fetch("/api/train", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ epochs, lr, batch_size: bs })
+  });
+
+  clearInterval(pollInterval);
+  pollInterval = setInterval(pollStatus, 600);
+}
+
+async function pollStatus() {
+  const res  = await fetch("/api/status");
+  const data = await res.json();
+
+  const tl = data.train_losses;
+  const vl = data.val_losses;
+  const n  = tl.length;
+
+  // progress
+  const pct = Math.round((n / totalEpochs) * 100);
+  document.getElementById("progressFill").style.width = pct + "%";
+  document.getElementById("epochCounter").textContent = `${n} / ${totalEpochs}`;
+
+  // chart
+  if (n > 0) {
+    document.getElementById("chartPlaceholder").style.display = "none";
+    document.getElementById("lossChart").style.display = "block";
+    if (!chart) initChart();
+
+    chart.data.labels        = Array.from({length: n}, (_, i) => i);
+    chart.data.datasets[0].data = tl;
+    chart.data.datasets[1].data = vl;
+    chart.update("none");
+
+    document.getElementById("bestTrain").textContent = Math.min(...tl).toFixed(5);
+    document.getElementById("bestVal").textContent   = Math.min(...vl).toFixed(5);
+    document.getElementById("lastEpoch").textContent = n - 1;
+
+    // append last entry to log
+    const log = document.getElementById("epochLog");
+    const last = n - 1;
+    if (log.children.length < n) {
+      const p = document.createElement("p");
+      p.innerHTML = `<span class="ep">epoch ${last}</span>  train <span class="train">${tl[last].toFixed(5)}</span>  val <span class="val">${vl[last].toFixed(5)}</span>`;
+      log.appendChild(p);
+      log.scrollTop = log.scrollHeight;
+    }
+  }
+
+  if (data.status === "done") {
+    clearInterval(pollInterval);
+    setStatus("done");
+    document.getElementById("trainBtn").disabled  = false;
+    document.getElementById("predictBtn").disabled = false;
+    // show matplotlib plot
+    if (data.plot_b64) {
+      document.getElementById("plotImg").src = "data:image/png;base64," + data.plot_b64;
+      document.getElementById("plotImg").style.display = "block";
+      document.getElementById("plotCard").style.display = "block";
+    }
+  } else if (data.status === "error") {
+    clearInterval(pollInterval);
+    setStatus("error");
+    document.getElementById("trainBtn").disabled = false;
+    document.getElementById("epochLog").innerHTML += `<p style="color:#fb7185">Error: ${data.error}</p>`;
+  }
+}
+
+function setStatus(s) {
+  const badge = document.getElementById("statusBadge");
+  const map = {
+    idle:     ["badge-idle",  "⬜ Idle",     false],
+    training: ["badge-train", "⚡ Training", true],
+    done:     ["badge-done",  "✅ Done",     false],
+    error:    ["badge-error", "❌ Error",    false],
+  };
+  const [cls, label, pulse] = map[s];
+  badge.className = `badge ${cls}`;
+  badge.innerHTML = `<span class="dot${pulse ? ' pulse' : ''}"></span> ${label}`;
+}
+
+// ── prediction ──
+async function runPredict() {
+  const inputs = [...document.querySelectorAll(".feat")];
+  const features = inputs.map(i => parseFloat(i.value) || 0);
+
+  const res  = await fetch("/api/predict", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ features })
+  });
+  const data = await res.json();
+  if (data.error) { alert(data.error); return; }
+
+  const prob    = data.probability;
+  const cls     = data.class;
+  const pct     = (prob * 100).toFixed(1);
+  const color   = cls === 1 ? "#34d399" : "#f472b6";
+  const label   = cls === 1 ? "Class 1  (Positive)" : "Class 0  (Negative)";
+  const bg      = cls === 1 ? "rgba(52,211,153,.12)" : "rgba(244,114,182,.12)";
+
+  const result  = document.getElementById("predictResult");
+  result.innerHTML = `
+    <div class="prob-ring" style="background:${bg}; border: 3px solid ${color}; color:${color}">
+      ${pct}%
+    </div>
+    <div class="class-label" style="color:${color}">${label}</div>
+    <div class="class-sub">Logit: ${data.logit} &nbsp;·&nbsp; P(class=1): ${prob}</div>`;
+  result.classList.add("show");
+}
+</script>
+</body>
+</html>
